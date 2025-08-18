@@ -28,6 +28,10 @@ class Settings(BaseSettings):
     DATABASE_URL: str = f"sqlite:///{(PROJECT_ROOT / 'data' / 'engrammer.db').as_posix()}"
     SQLALCHEMY_ECHO: bool = False 
     
+    NEO4J_IMAGE: str = "neo4j"   
+    DOCKER_NETWORK: str = "engrammer_net"     
+    NEO4J_WITH_APOC: bool = True              
+    
     class Config:
         env_file = ".env"
 

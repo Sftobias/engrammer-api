@@ -199,7 +199,7 @@ class PipelineGuardar:
         ).output_text
 
         # Persist into Neo4j
-        # asyncio.run(self.kg_builder.run_async(text=resumen))
+        asyncio.run(self.kg_builder.run_async(text=resumen))
 
         # Reset conversation to fresh preamble
         CONVERSATIONS.clear(tenant_id, session_id)
@@ -239,7 +239,10 @@ class PipelineGuardar:
                 user_message = f"{user_message}. Además de este recuerdo, el usuario ha adjuntado una imagen. Esta es su descripción: {image_description}".strip()
             except Exception:
                 pass
-
+        
+        if self.comprobar_fin_conversacion(user_message):
+            return self.finalizar_conversacion(tenant_id, session_id)
+        
         # Store and chat
         CONVERSATIONS.append(tenant_id, session_id, role="user", content=user_message)
 
@@ -249,9 +252,6 @@ class PipelineGuardar:
         ).choices[0].message.content
 
         CONVERSATIONS.append(tenant_id, session_id, role="assistant", content=response)
-
-        if self.comprobar_fin_conversacion(user_message):
-            return self.finalizar_conversacion(tenant_id, session_id)
 
         return response
 
