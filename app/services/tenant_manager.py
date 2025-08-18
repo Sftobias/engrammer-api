@@ -45,9 +45,9 @@ class TenantManager:
                 existing.neo4j_password = payload.neo4j_password
 
                 if hasattr(payload, "name"):
-                    existing.name = getattr(payload, "name") or existing.name
+                    existing.name = getattr(payload, "tenant_name") or existing.name
                 if hasattr(payload, "email"):
-                    existing.email = getattr(payload, "email") or existing.email
+                    existing.email = getattr(payload, "tenant_email") or existing.email
 
 
                 existing.updated_at = datetime.utcnow()

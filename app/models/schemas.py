@@ -4,6 +4,8 @@ from typing import Any, Dict, List, Optional
 # --- Tenant models ---
 class TenantCreate(BaseModel):
     tenant_id: str = Field(..., description="Unique tenant/user id")
+    tenant_name: str = Field(..., description="Name of the tenant/user")
+    tenant_email: str = Field(..., description="Email of the tenant/user")
     neo4j_uri: str = Field(..., example="bolt://localhost:7687")
     neo4j_user: str = Field(...)
     neo4j_password: str = Field(...)
