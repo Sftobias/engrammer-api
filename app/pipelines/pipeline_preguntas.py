@@ -2,6 +2,7 @@ from typing import List, Union, Generator, Iterator
 from app.core.llm import openai_client
 from app.services.tenant_manager import TENANTS
 from app.services.conversation_store import CONVERSATIONS
+from app.services.memory_store import MEMORIES
 
 # neo4j / graphrag
 from neo4j_graphrag.embeddings.openai import OpenAIEmbeddings
@@ -58,20 +59,20 @@ class PipelinePreguntas:
             index_name="text_embeddings",
             embedder=self.embedder,
             retrieval_query="""
-            // 1) Expandir 1-2 saltos por el grafo y recuperar relaciones
-            WITH node AS chunk
-            MATCH (chunk)<-[:FROM_CHUNK]-(entity)-[relList:!FROM_CHUNK]-{1,2}(nb)
-            UNWIND relList AS rel
+                //1) Go out 2-3 hops in the entity graph and get relationships
+                WITH node AS chunk
+                MATCH (chunk)<-[:FROM_CHUNK]-(entity)-[relList:!FROM_CHUNK]-{1,2}(nb)
+                UNWIND relList AS rel
 
-            // 2) Coleccionar relaciones y chunks
-            WITH collect(DISTINCT chunk) AS chunks, collect(DISTINCT rel) AS rels
+                //2) collect relationships and text chunks
+                WITH collect(DISTINCT chunk) AS chunks, collect(DISTINCT rel) AS rels
 
-            // 3) Formatear y devolver contexto
-            RETURN apoc.text.join([c in chunks | c.text], '\n') +
-                   apoc.text.join([r in rels |
-                     startNode(r).name+' - '+type(r)+' '+coalesce(r.details, '')+' -> '+endNode(r).name],
-                     '\n') AS info
-            """,
+                //3) format and return context
+                RETURN apoc.text.join([c in chunks | c.text], '\n') +
+                apoc.text.join([r in rels |
+                startNode(r).name+' - '+type(r)+' '+coalesce(r.details, '')+' -> '+endNode(r).name],
+                '\n') AS info
+             """
         )
 
         # --- Prompt template para RAG ---
@@ -101,13 +102,11 @@ class PipelinePreguntas:
 
         self.clientOpenAI = openai_client
 
-        self._session_recuerdos = {}
-
     def _get_recuerdo(self, session_id: str) -> str:
-        return self._session_recuerdos.get(session_id, "")
+        return MEMORIES.get(self.tenant_id, session_id)
 
     def _set_recuerdo(self, session_id: str, value: str) -> None:
-        self._session_recuerdos[session_id] = value or ""
+        MEMORIES.set(self.tenant_id, session_id, value)
 
 
     def invoke(
@@ -125,12 +124,22 @@ class PipelinePreguntas:
         prompt_gate = f"""
         Eres un asistente que está manteniendo una conversación con un usuario sobre sus propios recuerdos.
 
-        Conversación (history): {messages}
-        Recuerdo actual: {current_recuerdo}
+        Este es el contexto, la conversación y el recuerdo.
 
+        Conversación: {CONVERSATIONS.get(tenant_id, session_id)}
+        
+        Recuerdo: {current_recuerdo}
+        
         Tu tarea es identificar si el usuario quiere seguir hablando del mismo recuerdo o si quiere hablar de un recuerdo diferente.
-        - Si quiere cambiar de recuerdo o el tema no está en el recuerdo actual → devuelve False.
-        - Si claramente quiere seguir con el mismo recuerdo → devuelve True.
+        
+        También tienes que identificar si en el recuerdo se encuentra el contenido del que quiere hablar el usuario. 
+        
+        Si el usuario quiere cambiar de recuerdo, o el tema del que quiere hablar no se encuentra en el recuerdo, devuelve False.
+        
+        Si el usuario quiere continuar hablando del mismo recuerdo y la conversación esta relacionada con el recuerdo, devuelve True.
+        
+        Responde True solo si claramente el usuario quiere hablar del mismo recuerdo, si el usuario da cualquier señal de querer hablar de otra cosa responde False.
+        
         Devuelve exclusivamente True o False.
         """
         gate = self.clientOpenAI.responses.create(
@@ -142,7 +151,7 @@ class PipelinePreguntas:
         if gate != "True" or not current_recuerdo:
             topic = self.clientOpenAI.responses.create(
                 model="gpt-4o-mini",
-                input=f"Esta ha sido la conversación {messages}. Identifica la temática del recuerdo. Devuelve solo la temática.",
+                input=f"Estas manteniendo una conversación con un usuario sobre sus recuerdos, esta ha sido la conversación {CONVERSATIONS.get(tenant_id, session_id)}. Identifica la temática del recuerdo del que quiere hablar el usuario ahora. Únicamente responde con la temática, ningún texto adicional. Por ejemplo si el usuario dice 'Preguntame sobre mi viaje a Paris' responde con 'viaje a Paris'",
                 temperature=0,
             ).output_text.strip()
 
@@ -174,6 +183,9 @@ class PipelinePreguntas:
 
             self._set_recuerdo(session_id, nuevo_recuerdo)
             current_recuerdo = nuevo_recuerdo
+            
+            CONVERSATIONS.append(tenant_id, session_id, role="user", content=user_message)
+
 
         prompt_quiz = f"""
         Eres un asistente que tiene que jugar a un juego con un usuario.
@@ -186,7 +198,7 @@ class PipelinePreguntas:
         - No reveles respuestas nuevas salvo que el usuario lo pida explícitamente.
 
         Recuerdo: {current_recuerdo}
-        Conversación: {messages}
+        Conversación: {CONVERSATIONS.get(tenant_id, session_id)}
         """
 
         response = self.clientOpenAI.responses.create(
