@@ -1,0 +1,14 @@
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+neo4j
+openai
+ollama
+neo4j-graphrag
+httpx
+pytest
+numpy
+torch
+sqlmodel
+sqlalchemy

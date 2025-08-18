@@ -1,0 +1,206 @@
+from typing import List, Union, Generator, Iterator
+from app.core.llm import openai_client
+from app.services.tenant_manager import TENANTS
+from app.services.conversation_store import CONVERSATIONS
+
+# neo4j / graphrag
+from neo4j_graphrag.embeddings.openai import OpenAIEmbeddings
+from neo4j_graphrag.llm import OpenAILLM
+from neo4j_graphrag.indexes import create_vector_index
+from neo4j_graphrag.retrievers import VectorRetriever, VectorCypherRetriever
+from neo4j_graphrag.generation import RagTemplate, GraphRAG
+
+
+class PipelinePreguntas:
+
+    id = "pipeline_preguntas"
+    name = "Engrammer Preguntas"
+    description = "Hace preguntas guiadas sobre recuerdos del usuario empleando RAG sobre Neo4j."
+
+    def __init__(self, tenant_id: str):
+        self.tenant_id = tenant_id
+        tenant = TENANTS.get(tenant_id)
+        if not tenant:
+            raise ValueError(f"Unknown tenant {tenant_id}")
+
+        # Connect per-tenant
+        self.neo4j_driver = TENANTS.get_driver(tenant_id)
+
+        # LLMs / Embeddings
+        self.embedder = OpenAIEmbeddings()
+        self.llm = OpenAILLM(
+            model_name="gpt-4o-mini",
+            model_params={"temperature": 0.0},
+        )
+
+        try:
+            create_vector_index(
+                self.neo4j_driver,
+                name="text_embeddings",
+                label="Chunk",
+                embedding_property="embedding",
+                dimensions=1536,
+                similarity_fn="cosine",
+            )
+        except Exception:
+            pass
+
+        # --- Retrievers ---
+        self.vector_retriever = VectorRetriever(
+            self.neo4j_driver,
+            index_name="text_embeddings",
+            embedder=self.embedder,
+            return_properties=["text"],
+        )
+
+        self.graph_retriever = VectorCypherRetriever(
+            self.neo4j_driver,
+            index_name="text_embeddings",
+            embedder=self.embedder,
+            retrieval_query="""
+            // 1) Expandir 1-2 saltos por el grafo y recuperar relaciones
+            WITH node AS chunk
+            MATCH (chunk)<-[:FROM_CHUNK]-(entity)-[relList:!FROM_CHUNK]-{1,2}(nb)
+            UNWIND relList AS rel
+
+            // 2) Coleccionar relaciones y chunks
+            WITH collect(DISTINCT chunk) AS chunks, collect(DISTINCT rel) AS rels
+
+            // 3) Formatear y devolver contexto
+            RETURN apoc.text.join([c in chunks | c.text], '\n') +
+                   apoc.text.join([r in rels |
+                     startNode(r).name+' - '+type(r)+' '+coalesce(r.details, '')+' -> '+endNode(r).name],
+                     '\n') AS info
+            """,
+        )
+
+        # --- Prompt template para RAG ---
+        self.rag_template = RagTemplate(
+            template="""
+            You are a memory assistant, you have to help people to remember their memories.
+            Answer the Question using the following Context. Only respond with information mentioned in the Context.
+            Do not inject any speculative information not mentioned. Give detailed answers.
+
+            # Question:
+            {query_text}
+
+            # Context:
+            {context}
+
+            # Answer:
+            """,
+            expected_inputs=["query_text", "context"],
+        )
+
+        self.vector_rag = GraphRAG(
+            llm=self.llm, retriever=self.vector_retriever, prompt_template=self.rag_template
+        )
+        self.graph_rag = GraphRAG(
+            llm=self.llm, retriever=self.graph_retriever, prompt_template=self.rag_template
+        )
+
+        self.clientOpenAI = openai_client
+
+        self._session_recuerdos = {}
+
+    def _get_recuerdo(self, session_id: str) -> str:
+        return self._session_recuerdos.get(session_id, "")
+
+    def _set_recuerdo(self, session_id: str, value: str) -> None:
+        self._session_recuerdos[session_id] = value or ""
+
+
+    def invoke(
+        self,
+        tenant_id: str,
+        session_id: str,
+        user_message: str,
+        messages: List[dict],
+    ) -> Union[str, Generator, Iterator]:
+
+        CONVERSATIONS.append(tenant_id, session_id, role="user", content=user_message)
+
+        current_recuerdo = self._get_recuerdo(session_id)
+
+        prompt_gate = f"""
+        Eres un asistente que está manteniendo una conversación con un usuario sobre sus propios recuerdos.
+
+        Conversación (history): {messages}
+        Recuerdo actual: {current_recuerdo}
+
+        Tu tarea es identificar si el usuario quiere seguir hablando del mismo recuerdo o si quiere hablar de un recuerdo diferente.
+        - Si quiere cambiar de recuerdo o el tema no está en el recuerdo actual → devuelve False.
+        - Si claramente quiere seguir con el mismo recuerdo → devuelve True.
+        Devuelve exclusivamente True o False.
+        """
+        gate = self.clientOpenAI.responses.create(
+            model="gpt-4o-mini",
+            input=prompt_gate,
+            temperature=0,
+        ).output_text.strip()
+
+        if gate != "True" or not current_recuerdo:
+            topic = self.clientOpenAI.responses.create(
+                model="gpt-4o-mini",
+                input=f"Esta ha sido la conversación {messages}. Identifica la temática del recuerdo. Devuelve solo la temática.",
+                temperature=0,
+            ).output_text.strip()
+
+            try:
+                result = self.graph_rag.search(
+                    f"Hablame sobre {topic}", retriever_config={"top_k": 5}
+                )
+                nuevo_recuerdo = (result.answer or "").strip()
+            except Exception:
+                nuevo_recuerdo = ""
+
+            if not nuevo_recuerdo:
+                try:
+                    result = self.vector_rag.search(
+                        f"Hablame sobre {topic}", retriever_config={"top_k": 5}
+                    )
+                    nuevo_recuerdo = (result.answer or "").strip()
+                except Exception:
+                    nuevo_recuerdo = ""
+
+            if not nuevo_recuerdo:
+                assistant_msg = (
+                    "No he podido encontrar detalles de ese recuerdo aún. "
+                )
+                CONVERSATIONS.append(
+                    tenant_id, session_id, role="assistant", content=assistant_msg
+                )
+                return assistant_msg
+
+            self._set_recuerdo(session_id, nuevo_recuerdo)
+            current_recuerdo = nuevo_recuerdo
+
+        prompt_quiz = f"""
+        Eres un asistente que tiene que jugar a un juego con un usuario.
+
+        Tienes un recuerdo del usuario y vas a tener que hacerle preguntas al usuario sobre dicho recuerdo para que trate de recordar la respuesta.
+        - Haz preguntas sobre datos concretos presentes en el recuerdo (qué se hizo, quiénes estaban, dónde, cuándo…).
+        - SOLO una pregunta por turno.
+        - Si el usuario acierta, felicítale y ofrécele dar más detalles (solo del recuerdo, sin inventar).
+        - Si falla, corrígele amablemente y explica el detalle correcto (solo información del recuerdo).
+        - No reveles respuestas nuevas salvo que el usuario lo pida explícitamente.
+
+        Recuerdo: {current_recuerdo}
+        Conversación: {messages}
+        """
+
+        response = self.clientOpenAI.responses.create(
+            model="gpt-4o-mini",
+            instructions=prompt_quiz,
+            input=user_message,
+            temperature=0,
+        ).output_text
+
+        CONVERSATIONS.append(tenant_id, session_id, role="assistant", content=response)
+        return response
+
+
+def pipeline_preguntas_factory():
+    def _builder(tenant_id: str) -> PipelinePreguntas:
+        return PipelinePreguntas(tenant_id)
+    return _builder
