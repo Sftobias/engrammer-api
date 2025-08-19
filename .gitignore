@@ -70,3 +70,5 @@ storage/*
 
 # ───────── Miscelánea local ─────────
 *.local
+get_token.sh
+.gitignore
