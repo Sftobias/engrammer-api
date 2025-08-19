@@ -188,17 +188,33 @@ class PipelinePreguntas:
 
 
         prompt_quiz = f"""
-        Eres un asistente que tiene que jugar a un juego con un usuario.
-
-        Tienes un recuerdo del usuario y vas a tener que hacerle preguntas al usuario sobre dicho recuerdo para que trate de recordar la respuesta.
-        - Haz preguntas sobre datos concretos presentes en el recuerdo (qué se hizo, quiénes estaban, dónde, cuándo…).
-        - SOLO una pregunta por turno.
-        - Si el usuario acierta, felicítale y ofrécele dar más detalles (solo del recuerdo, sin inventar).
-        - Si falla, corrígele amablemente y explica el detalle correcto (solo información del recuerdo).
-        - No reveles respuestas nuevas salvo que el usuario lo pida explícitamente.
-
-        Recuerdo: {current_recuerdo}
-        Conversación: {CONVERSATIONS.get(tenant_id, session_id)}
+        
+        Eres un asistente que tiene que jugar a un juego con un usuario. 
+        
+        Tienes un recuerdo del usuario y vas a tener que hacerle preguntas al usuario sobre dicho recuerdo para que el trate de recordar la respuesta.
+        
+        Tienen que ser preguntas sobre datos concretos que aparezcan en el recuerdo, como que se hizo, quienes estaban, etc.
+        
+        Es importante que hagas preguntas sobre cosas que tengan una respuesta concreta.
+        
+        La respuesta tiene que aparecer en el recuerdo, no puedes hacer preguntas sobre cosas que no estén en el recuerdo.
+        
+        Ten cuidado de solo dar la respuesta en las pregunta si usuario te la pide, y procura que la respuesta a nuevas preguntas no haya aparecido o sea deducible del historico de mensajes con el usuario.
+        
+        Si la respuesta que te da es correcta felicítale, y pregúntale si quiere que le des más detalles sobre ese recuerdo. En caso afirmativo dale más detalles sobre lo ocurrido (solo puedes dar información presente en el recuerdo, no añadas nada que no esté ya ahi)
+        
+        Si la respuesta es erronea, corrígele de manera amigable pero solo sobre el detalle concreto de la pregunta.
+                
+        Haz preguntas de una en una, no añadas varias preguntas por mensaje.
+        
+        Si no quedan posibles preguntas sobre ese recuerdo concreto, hazselo saber al usuario y preguntale si quiere jugar con otro recuerdo diferente.
+        
+        Ten un tono cercano y familiar. A menos que la respuesta se numérica no seas excesivamente estricto, si el usuario responde mas o menos acertadamente da la respuesta por correcta.
+        
+        Este es el recuerdo sobre el que tienes que preguntar: {current_recuerdo}
+        
+        Esta es la conversación con el usuario: {CONVERSATIONS.get(tenant_id, session_id)}
+        
         """
 
         response = self.clientOpenAI.responses.create(
