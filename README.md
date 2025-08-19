@@ -1,5 +1,7 @@
 # GraphRAG Pipelines API (Multi-tenant)
 
+WARNING: DOC OUTDATED. WIP
+
 Expose pipelines as REST endpoints with multi-tenant isolation.
 
 ## Quick start
