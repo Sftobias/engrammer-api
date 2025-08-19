@@ -5,7 +5,7 @@ pydantic-settings
 neo4j
 openai
 ollama
-neo4j-graphrag
+neo4j-graphrag[OpenAI]
 httpx
 pytest
 numpy
@@ -13,3 +13,4 @@ torch
 sqlmodel
 sqlalchemy
 docker
+pyjwt[crypto]

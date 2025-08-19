@@ -101,10 +101,7 @@ class PipelineRecuperar:
         user_message: str,
         messages: List[dict],
     ) -> Union[str, Generator, Iterator]:
-        """
-        Ejecuta búsqueda RAG en Neo4j con prioridad en contexto de grafo; fallback a vectorial.
-        Devuelve una respuesta amigable basada exclusivamente en el contexto recuperado.
-        """
+
         CONVERSATIONS.append(tenant_id, session_id, role="user", content=user_message)
 
         answer = ""

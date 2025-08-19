@@ -19,7 +19,6 @@ class ChatMessage(BaseModel):
     content: Any  # string or list of {type: text|image_url}
 
 class InvokeRequest(BaseModel):
-    tenant_id: str
     pipeline_id: str
     user_message: str
     messages: List[ChatMessage] = Field(default_factory=list)

@@ -30,7 +30,26 @@ class Settings(BaseSettings):
     
     NEO4J_IMAGE: str = "neo4j"   
     DOCKER_NETWORK: str = "engrammer_net"     
-    NEO4J_WITH_APOC: bool = True              
+    NEO4J_WITH_APOC: bool = True
+    
+    #Keycloack
+    KEYCLOAK_SERVER_URL: str | None = None
+    KEYCLOAK_REALM: str | None = None
+    KEYCLOAK_CLIENT_ID: str | None = None
+    KEYCLOAK_AUDIENCE: str | None = None
+    KEYCLOAK_CLIENT_SECRET: str | None = None      
+    
+    @property
+    def KEYCLOAK_ISSUER(self) -> str | None:
+        if not self.KEYCLOAK_SERVER_URL or not self.KEYCLOAK_REALM:
+            return None
+        base = self.KEYCLOAK_SERVER_URL.rstrip("/")
+        return f"{base}/realms/{self.KEYCLOAK_REALM}"
+
+    @property
+    def KEYCLOAK_JWKS_URL(self) -> str | None:
+        iss = self.KEYCLOAK_ISSUER
+        return f"{iss}/protocol/openid-connect/certs" if iss else None        
     
     class Config:
         env_file = ".env"

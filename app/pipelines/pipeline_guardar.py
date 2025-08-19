@@ -173,11 +173,15 @@ class PipelineGuardar:
         resp = self.clientOpenAI.responses.create(
             model="gpt-4o-mini",
             instructions='''
-                Eres un asistente que esta escuchando una conversación con un usuario en el que el usuario está describiendo un recuerdo suyo.
+                Eres un asistente que esta escuchando una conversación con un usuario en el que el usuario está describiendo un recuerdo suyo. T
                 Tu tarea es identificar si el usuario quiere finalizar la conversación y guardar el recuerdo. El usuario tiene que expresar de forma explicita que quiere finalizar la conversación y guardar el recuerdo, por ejemplo, diciendo "finalizar conversación" o "guardar recuerdo".
-                El usuario también puede expresarlo diciendo que el recuerdo ya está completo o que no quiere añadir más información.
+                El usuario también puede exxpresarlo diciendo que el recuerdo ya está completo o que no quiere añadir más información.
                 Devuelve True si el usuario quiere finalizar la conversación y guardar el recuerdo, y False en caso contrario.
-                Responde exclusivamente True o False.
+                Responde exclusivamente True o False. 
+                
+                Ejemplo de mensaje del usuario: "Eso es todo". Respuesta: True
+                Ejemplo de mensaje del usuario: "No tengo nada más que añadir". Respuesta: True
+                Ejemplo de mensaje del usuario: "Estuve con mis familiares en un concierto y lo pasamos genial". Respuesta: False
             ''',
             input=text,
         ).output_text.strip().upper()
@@ -185,16 +189,17 @@ class PipelineGuardar:
 
     def finalizar_conversacion(self, tenant_id: str, session_id: str) -> str:
         history = CONVERSATIONS.get(tenant_id, session_id)
-        full_conversation = "\n".join(f"{m['role'].capitalize()}: {m['content']}" for m in history)
+        full_conversation = "\n".join(f"{m['role'].capitalize()}: {m['content']}" for m in history if m["role"] != "developer")
         resumen = self.clientOpenAI.responses.create(
             model="gpt-4o-mini",
             instructions='''
                 Eres un asistente que tiene que resumir una conversación con un usuario.
                 En la conversación verás que el usuario ha ido describiendo un recuerdo suyo mientras que un asistente le ha ido preguntando por detalles relevantes.
-                Tu tarea es resumir el recuerdo de forma clara. Describe el recuerdo, no la interacción con el asistente.
-                No añadas información que no haya sido proporcionada por el usuario. No inventes información.
-                Incluye la información relevante de posibles descripciones de imágenes.
-            ''',
+                Tu tarea es resumir el recuerdo de forma clara. Describe el recuerdo, no la interacción con el asistente. (Por ejemplo, no digas "el asistente le preguntó al usuario por el nombre del artista", sino "el usuario fue a un concierto de [nombre del artista]").
+                No añadas información que no haya sido proporcionada por el usuario. No inventes información que no haya sido proporcionada por el usuario.
+                El resumen tiene que contener todos los detalles del recuerdo que se describen en la conversación.
+                Además es posible que el recuerdo incluya descripciones de imágenes, si es así, debes incluir la información relevante de las imágenes en el resumen.
+                ''',
             input=full_conversation,
         ).output_text
 
