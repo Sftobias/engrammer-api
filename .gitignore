@@ -72,3 +72,6 @@ storage/*
 *.local
 get_token.sh
 .gitignore
+
+token.json
+token.sh
