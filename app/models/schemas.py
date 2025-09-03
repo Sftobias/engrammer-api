@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field, HttpUrl
 from typing import Any, Dict, List, Optional
+from app.models.db_models import ActivityQuestion
 
 # --- Tenant models ---
 class TenantCreate(BaseModel):
@@ -49,3 +50,23 @@ class EndConversationRequest(BaseModel):
 
 class EndConversationResponse(BaseModel):
     message: str
+    
+# --- Activities and Questions ---
+class ActivityInfo(BaseModel):
+    id: str
+    name: str
+    description: Optional[str] = None
+    
+class QuestionDetail(BaseModel):
+    id: str
+    activity_id: str
+    contexto: Optional[str] = None
+    pregunta: str
+    respuesta_correcta: str
+
+class ActivityDetail(BaseModel):
+    id: str
+    name: str
+    description: Optional[str] = None
+    questions: List[QuestionDetail]
+

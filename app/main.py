@@ -5,6 +5,7 @@ from app.api.v1.endpoints.tenants import router as tenants_router
 from app.api.v1.endpoints.pipelines import router as pipelines_router
 from app.api.v1.endpoints.historia import router as historia_router
 from app.api.v1.endpoints.recuerdos import router as recuerdos_router
+from app.api.v1.endpoints.activities import router as activities_router
 from app.utils.logging import configure_logging
 from app.core.db import create_db_and_tables
 
@@ -28,10 +29,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(tenants_router, prefix="/v1", tags=["users"]) 
+# app.include_router(tenants_router, prefix="/v1", tags=["users"]) 
 app.include_router(pipelines_router, prefix="/v1", tags=["pipelines"]) 
-app.include_router(historia_router, prefix="/v1", tags=["historia"])
-app.include_router(recuerdos_router, prefix="/v1", tags=["recuerdos"])
+app.include_router(historia_router, prefix="/v1", tags=["history"])
+app.include_router(recuerdos_router, prefix="/v1", tags=["memories"])
+app.include_router(activities_router, prefix="/v1", tags=["activities"])
 
 @app.get("/health", tags=["health"]) 
 def health(): 

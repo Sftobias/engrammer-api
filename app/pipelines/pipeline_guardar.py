@@ -147,9 +147,9 @@ class PipelineGuardar:
             from_pdf=False,
         )
 
-    def _developer_preamble(self) -> dict:
+    def _system_preamble(self) -> dict:
         return {
-            "role": "developer",
+            "role": "system",
             "content": '''
                 Eres un asistente que almacena recuerdos del usuario, si detectas que falta información relevante dile al usuario que datos consideras interesantes y especifícale que puede darte más información. 
                 Es posible que el usuario haya proporcionado imagenes para complementar el recuerdo, si es así, debes seguir las siguientes normas: 
@@ -166,8 +166,8 @@ class PipelineGuardar:
 
     def _ensure_preamble(self, tenant_id: str, session_id: str):
         history = CONVERSATIONS.get(tenant_id, session_id)
-        if not history or history[0].get("role") != "developer":
-            CONVERSATIONS.append(tenant_id, session_id, **self._developer_preamble())
+        if not history or history[0].get("role") != "system":
+            CONVERSATIONS.append(tenant_id, session_id, **self._system_preamble())
 
     def comprobar_fin_conversacion(self, text: str) -> bool:
         resp = self.clientOpenAI.responses.create(
@@ -189,7 +189,7 @@ class PipelineGuardar:
 
     def finalizar_conversacion(self, tenant_id: str, session_id: str) -> str:
         history = CONVERSATIONS.get(tenant_id, session_id)
-        full_conversation = "\n".join(f"{m['role'].capitalize()}: {m['content']}" for m in history if m["role"] != "developer")
+        full_conversation = "\n".join(f"{m['role'].capitalize()}: {m['content']}" for m in history if m["role"] != "system")
         resumen = self.clientOpenAI.responses.create(
             model="gpt-4o-mini",
             instructions='''
@@ -208,7 +208,7 @@ class PipelineGuardar:
 
         # Reset conversation to fresh preamble
         CONVERSATIONS.clear(tenant_id, session_id)
-        CONVERSATIONS.append(tenant_id, session_id, **self._developer_preamble())
+        CONVERSATIONS.append(tenant_id, session_id, **self._system_preamble())
         return f"Conversación finalizada. Resumen guardado: {resumen}"
 
     def invoke(self, tenant_id: str, session_id: str, user_message: str, messages: List[dict]) -> str:

@@ -8,7 +8,7 @@ from app.api.v1.deps import get_current_tenant_id
 
 router = APIRouter()
 
-@router.post("/recuerdos/invoke", response_model=InvokeResponse)
+@router.post("/memories/invoke", response_model=InvokeResponse)
 def invoke_pipeline(
     req: MemoryInvokeRequest,
     tenant_id: str = Depends(get_current_tenant_id)
@@ -24,7 +24,7 @@ def invoke_pipeline(
     output = pipeline.invoke(tenant_id, req.session_id or "default", req.user_message, [m.model_dump() for m in req.messages])
     return InvokeResponse(output=output)
 
-@router.post("/recuerdos/end", response_model=EndConversationResponse)
+@router.post("/memories/end", response_model=EndConversationResponse)
 def end_conversation(
     req: EndConversationRequest,
     tenant_id: str = Depends(get_current_tenant_id)
