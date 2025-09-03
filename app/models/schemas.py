@@ -19,18 +19,15 @@ class ChatMessage(BaseModel):
     role: str
     content: Any  # string or list of {type: text|image_url}
 
-class MemoryInvokeRequest(BaseModel):
+class InvokeRequest(BaseModel):
     pipeline_id: str
     user_message: str
     messages: List[ChatMessage] = Field(default_factory=list)
     session_id: Optional[str] = Field(default="default", description="Conversation id within tenant")
     
-class HistoryInvokeRequest(BaseModel):
-    pipeline_id: str
+class ActivityInvokeRequest(BaseModel):
     user_message: str
     messages: List[ChatMessage] = Field(default_factory=list)
-    session_id: str = Field(description="Conversation id within tenant")
-    activity_index: int = Field(..., description="Index of the activity user is referring to")
 
 class InvokeResponse(BaseModel):
     output: str

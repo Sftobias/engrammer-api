@@ -4,6 +4,7 @@ from app.services.pipeline_registry import PIPELINES, RegisteredPipeline
 from app.pipelines.pipeline_guardar import pipeline_guardar_factory, PipelineGuardar
 from app.pipelines.pipeline_preguntas import PipelinePreguntas, pipeline_preguntas_factory
 from app.pipelines.pipeline_recuperar import PipelineRecuperar, pipeline_recuperar_factory
+from app.pipelines.pipeline_historia import PipelineHistoria, pipeline_historia_factory
 
 # Register pipelines on import
 PIPELINES.register(RegisteredPipeline(
@@ -25,6 +26,13 @@ PIPELINES.register(RegisteredPipeline(
     name=PipelineRecuperar.name,
     description=PipelineRecuperar.description,
     factory=pipeline_recuperar_factory(),
+))
+
+PIPELINES.register(RegisteredPipeline(
+    id=PipelineHistoria.id,
+    name=PipelineHistoria.name,
+    description=PipelineHistoria.description,
+    factory=pipeline_historia_factory(),
 ))
 
 router = APIRouter()

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from app.models.schemas import MemoryInvokeRequest, InvokeResponse, PipelinesList, PipelineInfo, EndConversationRequest, EndConversationResponse
+from app.models.schemas import InvokeRequest, InvokeResponse, PipelinesList, PipelineInfo, EndConversationRequest, EndConversationResponse
 from app.services.pipeline_registry import PIPELINES, RegisteredPipeline
 from app.pipelines.pipeline_guardar import pipeline_guardar_factory, PipelineGuardar
 from app.pipelines.pipeline_preguntas import PipelinePreguntas, pipeline_preguntas_factory
@@ -10,7 +10,7 @@ router = APIRouter()
 
 @router.post("/memories/invoke", response_model=InvokeResponse)
 def invoke_pipeline(
-    req: MemoryInvokeRequest,
+    req: InvokeRequest,
     tenant_id: str = Depends(get_current_tenant_id)
 ):
     
