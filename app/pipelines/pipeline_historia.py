@@ -1,4 +1,6 @@
 from typing import List, Union, Generator, Iterator
+
+from pymilvus import MilvusClient
 from app.services.activity_manager import ACTIVITIES
 from app.services.tenant_manager import TENANTS
 from app.services.conversation_store import CONVERSATIONS
@@ -17,6 +19,9 @@ class PipelineHistoria:
         tenant = TENANTS.get(tenant_id)
         if not tenant:
             raise ValueError(f"Unknown tenant {tenant_id}")
+        
+        self.milvus_client = MilvusClient(uri="/home/ubuntu/engrammer-api/data/milvus.db")
+        self.collection_name="knowledge_base_collection"
         
     def _system_preamble(self, question: ActivityQuestion) -> dict:
         return {
@@ -47,6 +52,35 @@ class PipelineHistoria:
             
             CONVERSATIONS.append(tenant_id, session_id, **self._system_preamble(question))
             
+    def emb_text(self, text):
+        return (
+            openai_client.embeddings.create(input=text, model="text-embedding-3-small")
+            .data[0]
+            .embedding
+        )
+        
+    def get_rag_context(self, rag_topic: str) -> str:
+        search_res = self.milvus_client.search(
+            collection_name= self.collection_name,
+            data=[
+                self.emb_text(rag_topic)
+            ],  # Use the `emb_text` function to convert the question to an embedding vector
+            limit=3,  # Return top 3 results
+            search_params={"metric_type": "IP", "params": {}},  # Inner product distance
+            output_fields=["text"],  # Return the text field
+        )
+        
+        retrieved_lines_with_distances = [
+            (res["entity"]["text"], res["distance"]) for res in search_res[0]
+        ]
+        # print(json.dumps(retrieved_lines_with_distances, indent=4))
+        
+        context = "\n".join(
+            [line_with_distance[0] for line_with_distance in retrieved_lines_with_distances]
+        )
+        
+        return context
+            
 
     def invoke(
         self,
@@ -59,11 +93,30 @@ class PipelineHistoria:
         self._ensure_preamble(tenant_id, session_id)
 
         CONVERSATIONS.append(tenant_id, session_id, role="user", content=user_message)
+        
+        history = CONVERSATIONS.get(tenant_id, session_id)
+        full_conversation = "\n".join(f"{m['role'].capitalize()}: {m['content']}" for m in history if m["role"] != "system")
 
+        rag_topic = openai_client.responses.create(
+                model="gpt-4o-mini",
+                input=f"Identifica la temática de los ultimos mensajes de la conversación encapsulada en <conversacion> para realizar una búsqueda en una base de datos vectorial. Se bastante se preciso al detallar la ultima tematica tratada. Devuelve unicamente el string de búsqueda.  <conversacion>{full_conversation}.</conversacion>",
+                temperature=0,
+            ).output_text.strip()
+        
+        rag_context = self.get_rag_context(rag_topic)
+
+        # CONVERSATIONS.append(tenant_id, session_id, role="system", content=f"Usa el siguiente contexto para responder a la pregunta del alumno. Si el contexto no es relevante, simplemente ignóralo y responde a la pregunta. <contexto> {rag_context} </contexto>")
+        
         response = openai_client.chat.completions.create(
             model="gpt-4o-mini",
             messages=CONVERSATIONS.get(tenant_id, session_id),
         ).choices[0].message.content
+        
+        # response = openai_client.responses.create(
+        #         model="gpt-4o-mini",
+        #         input=f"Usa el siguiente contexto para responder a la pregunta del alumno. Si el contexto no es relevante, simplemente ignóralo y responde a la pregunta. <conversacion> {full_conversation} </conversacion> <contexto> {rag_context} </contexto>",
+        #         temperature=0,
+        #     ).output_text.strip()
         
         if not response:
             raise ValueError("No response from LLM")

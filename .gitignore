@@ -80,3 +80,4 @@ data/*
 *.ctxt
 engrammer.txt
 app/scripts/seed.py
+docs/
