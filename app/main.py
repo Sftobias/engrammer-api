@@ -26,7 +26,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(tenants_router, prefix="/v1", tags=["users"]) 
+# app.include_router(tenants_router, prefix="/v1", tags=["users"]) 
 app.include_router(pipelines_router, prefix="/v1", tags=["pipelines"]) 
 
 @app.get("/health", tags=["health"]) 
