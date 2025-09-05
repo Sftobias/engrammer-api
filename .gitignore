@@ -72,6 +72,12 @@ storage/*
 *.local
 get_token.sh
 .gitignore
-
-token.json
 token.sh
+token.json
+.venv
+data/
+data/*
+*.ctxt
+engrammer.txt
+app/scripts/seed.py
+docs/

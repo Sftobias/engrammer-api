@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field, HttpUrl
 from typing import Any, Dict, List, Optional
+from app.models.db_models import ActivityQuestion
 
 # --- Tenant models ---
 class TenantCreate(BaseModel):
@@ -23,6 +24,10 @@ class InvokeRequest(BaseModel):
     user_message: str
     messages: List[ChatMessage] = Field(default_factory=list)
     session_id: Optional[str] = Field(default="default", description="Conversation id within tenant")
+    
+class ActivityInvokeRequest(BaseModel):
+    user_message: str
+    messages: List[ChatMessage] = Field(default_factory=list)
 
 class InvokeResponse(BaseModel):
     output: str
@@ -42,3 +47,23 @@ class EndConversationRequest(BaseModel):
 
 class EndConversationResponse(BaseModel):
     message: str
+    
+# --- Activities and Questions ---
+class ActivityInfo(BaseModel):
+    id: str
+    name: str
+    description: Optional[str] = None
+    
+class QuestionDetail(BaseModel):
+    id: str
+    activity_id: str
+    contexto: Optional[str] = None
+    pregunta: str
+    respuesta_correcta: str
+
+class ActivityDetail(BaseModel):
+    id: str
+    name: str
+    description: Optional[str] = None
+    questions: List[QuestionDetail]
+

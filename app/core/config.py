@@ -22,10 +22,11 @@ class Settings(BaseSettings):
     
     #Persistence
     PROJECT_ROOT: Path = Path(__file__).resolve().parents[2]
-    DB_DIR: Path = PROJECT_ROOT / "data"
-    DB_FILE: Path = DB_DIR / "engrammer.db"
+    # DB_DIR: Path = PROJECT_ROOT / "data"
+    # TENANT_DB_FILE: Path = DB_DIR / "engrammer_tenants.db"
 
     DATABASE_URL: str = f"sqlite:///{(PROJECT_ROOT / 'data' / 'engrammer.db').as_posix()}"
+    
     SQLALCHEMY_ECHO: bool = False 
     
     NEO4J_IMAGE: str = "neo4j"   

@@ -14,3 +14,7 @@ sqlmodel
 sqlalchemy
 docker
 pyjwt[crypto]
+pytest
+pymilvus  
+requests 
+tqdm
